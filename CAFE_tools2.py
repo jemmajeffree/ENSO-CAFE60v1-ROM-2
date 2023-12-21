@@ -234,6 +234,7 @@ def paired_best_fit_matrix(Y0,Y1,dt, verbose = False):
     if verbose, step through what I'm doing and the values achieved so far'''
 
     
+    # Do a quick linear least squares approximation to ensure scipy.optimize.minimize finds the right local minimum
     dy = (Y1-Y0)/dt
     G = np.linalg.lstsq(((Y0+Y1)/2).T,dy.T, rcond=None)[0].T
     
@@ -241,7 +242,7 @@ def paired_best_fit_matrix(Y0,Y1,dt, verbose = False):
         print(G)
         print('Eigenvalues:' +str(scipy.linalg.eig(G.reshape((2,2)))[0]))
     
-    
+    # Full optimisation
     A1 = scipy.optimize.minimize(jde.paired_optimiser,G,(Y0,Y1,dt)).x
     if verbose:
         print(A1.reshape((2,2)))
@@ -259,7 +260,7 @@ def paired_best_fit_matrix_exp(Y0,Y1,dt, verbose = False):
     if h is very small get there in steps instead of trying to approach it all at once
     if verbose, step through what I'm doing and the values achieved so far'''
 
-    
+    # Do a quick linear least squares approximation to ensure scipy.optimize.minimize finds the right local minimum
     dy = (Y1-Y0)/dt
     G = np.linalg.lstsq(((Y0+Y1)/2).T,dy.T, rcond=None)[0].T
     
@@ -267,7 +268,7 @@ def paired_best_fit_matrix_exp(Y0,Y1,dt, verbose = False):
         print(G)
         print('Eigenvalues:' +str(scipy.linalg.eig(G.reshape((2,2)))[0]))
     
-    
+    # Full optimisation
     A1 = scipy.optimize.minimize(jde.paired_optimiser_exp,G,(Y0,Y1,dt)).x
     if verbose:
         print(A1.reshape((2,2)))
@@ -289,19 +290,25 @@ def fit_matrix_for_data_subset(filename,
                             verbose = False, #If true, prints updates about how the code's going
                            ): 
     
+    # Set up data storage
     coefficient_matrix = np.zeros((len(startyears),len(ensemble),2,2)) # dims: start year, ensemble member, matrix
     variance = np.zeros((len(startyears),len(ensemble))) #dims: start year, ensemble member
 
+    # Iterate through each fit
     for i,y in enumerate(startyears):
         for j,e in enumerate(ensemble):
             if type(e) == int:
                 e = np.array((e,))
+                
+            # Build data structure for optimiser
             Y0,Y1 = build_IVP_pairs(sst_index.sel(ensemble_member = e), 
                                     i20_index.sel(ensemble_member = e),y,y+windowlength-1,season=season)
             
-            A, var = paired_best_fit_matrix(Y0,Y1,1,verbose=verbose) #Calculate fit
+            # Calculate fit
+            A, var = paired_best_fit_matrix(Y0,Y1,1,verbose=verbose) 
             
-            coefficient_matrix[i,j,:,:] = A.reshape((2,2)) #Save fit
+            # Store fit
+            coefficient_matrix[i,j,:,:] = A.reshape((2,2))
             variance[i,j] = var
             
             if verbose:  
@@ -309,7 +316,7 @@ def fit_matrix_for_data_subset(filename,
                 print(A)
                 print('----------------------------------------')
             
-    #Save output
+    # Save output with metadata
     coefficient_matrix_xr = xr.DataArray(coefficient_matrix,name = 'A', dims = ('start_year','ensemble_members', 'matrix_row','matrix_collumn'))
     
     if type(ensemble) == list:
